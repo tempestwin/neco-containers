@@ -1,6 +1,6 @@
 # Build the moco-init binary
 FROM quay.io/cybozu/golang:1.17-focal as builder
-
+ENV GOPROXY=https://goproxy.cn
 # Copy the go source
 COPY ./ .
 
