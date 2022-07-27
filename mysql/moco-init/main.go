@@ -4,14 +4,12 @@ import (
 	_ "embed"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"text/template"
 
 	"github.com/spf13/cobra"
-	"golang.org/x/sys/unix"
 )
 
 const (
@@ -56,10 +54,6 @@ such as server_id and admin_address.`,
 }
 
 func subMain(serverIDBase string) error {
-	mysqld, err := exec.LookPath("mysqld")
-	if err != nil {
-		return err
-	}
 
 	config.podName = os.Getenv("POD_NAME")
 	if len(config.podName) == 0 {
@@ -88,52 +82,9 @@ func subMain(serverIDBase string) error {
 		if !os.IsNotExist(err) {
 			return err
 		}
-		if err := initMySQL(mysqld); err != nil {
-			return err
-		}
 	}
 
 	return createConf()
-}
-
-func initMySQL(mysqld string) error {
-	dataDir := filepath.Join(config.dataDir, "data")
-	if err := os.RemoveAll(dataDir); err != nil {
-		return fmt.Errorf("failed to remove dir %s: %w", dataDir, err)
-	}
-
-	cmd := exec.Command(mysqld, "--basedir="+config.baseDir, "--datadir="+dataDir, "--initialize-insecure")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return err
-	}
-
-	dotFile := filepath.Join(config.dataDir, "."+initializedFile)
-	if err := os.Remove(dotFile); err != nil && !os.IsNotExist(err) {
-		return err
-	}
-
-	f, err := os.Create(dotFile)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	if err := unix.Syncfs(int(f.Fd())); err != nil {
-		return fmt.Errorf("failed to sync fs: %w", err)
-	}
-
-	if err := os.Rename(dotFile, filepath.Join(config.dataDir, initializedFile)); err != nil {
-		return err
-	}
-
-	g, err := os.OpenFile(config.dataDir, os.O_RDONLY, 0755)
-	if err != nil {
-		return err
-	}
-	defer g.Close()
-	return g.Sync()
 }
 
 func createConf() error {
